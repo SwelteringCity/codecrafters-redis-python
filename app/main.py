@@ -68,7 +68,7 @@ def handle_client(client_socket, addr):
         # print(f"Waiting for data from {addr}")
         data = client_socket.recv(1024)
         if len(data) > 0:
-            resp = handle_data(data)
+            # resp = handle_data(data)
             resp = handle_command(data)
         else:
             # print(f"Closing connection {addr}")
