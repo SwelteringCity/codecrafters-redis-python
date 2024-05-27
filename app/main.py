@@ -5,7 +5,7 @@ DEBUG = False
 DELIM = "\r\n"
 REDIS_PONG = "+PONG" + DELIM
 REDIS_COMMANDS = [
-    REDIS_PONG
+    # REDIS_PONG
     "COMMAND",
     "PING",
     "ECHO",
