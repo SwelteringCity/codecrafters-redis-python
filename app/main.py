@@ -9,7 +9,7 @@ def handle_client(connection: socket.socket, address: Tuple[str, int]) -> None:
             data: bytes = connection.recv(1024)
             if not data:
                 break
-            if "ping" in data.decode().lower():
+            if data:
                 pong: str = "+PONG\r\n"
                 connection.sendall(pong.encode())
 def main():
@@ -22,7 +22,7 @@ def main():
             connection: socket.socket
             address: Tuple[str, int]
             connection, address = server_socket.accept()
-            handle_client(connection, address)
+            # handle_client(connection, address)
             client_thread = threading.Thread(
                 target=handle_client, args=[connection, address]
             )
