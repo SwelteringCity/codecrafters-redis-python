@@ -1,53 +1,94 @@
 import socket
-# from typing import Tuple
-import threading
-# def handle_client(connection: socket.socket, address: Tuple[str, int]) -> None:
-#     with connection:
-#         print(f"Accecpted connection from {address}\n")
-#         while True:
-#             data: bytes = connection.recv(1024)
-#             if not data:
-#                 break
-#             if data:
-#                 pong: str = "+PONG\r\n"
-#                 connection.sendall(pong.encode())
-def handle_connection(conn, addr):
-    while True:
-        request: bytes = conn.recv(1024)
-        if not request:
-            break
-        data: str = request.decode()
-        if "ping" in data.lower():
-            response = "+PONG\r\n"
-            print(response)
-            conn.send(response.encode())
-    conn.close()
+from threading import Thread
+REDIS_PONG = "+PONG\r\n"
+DEBUG = False
+DELIM = "\r\n"
+REDIS_PONG = "+PONG" + DELIM
+REDIS_COMMANDS = [
+    REDIS_PONG
+    "COMMAND",
+    "PING",
+    "ECHO",
+]  # Asterisk as first byte; int for num elements in array; CRLF; each RESP
+# def handle_data(data):
+#     resp = "-ERR unknown command\r\n"
+#     #    print(f"Data received {data}")
+#     data_list = data.splitlines()
+#     if data_list[2].decode("utf8").upper() == "PING":
+#         #        print("PING received")
+#         resp = REDIS_PONG
+#     elif data_list[2].decode("utf8").upper() == "COMMAND":
+#         resp = "*" + str(len(REDIS_COMMANDS)) + "\r\n"
+#         for cmd in REDIS_COMMANDS:
+#             resp += cmd
+def handle_command(data):
+    # set unknown command error
+    resp = "-ERR unknown command" + DELIM
+    data_list = data.decode("utf8").splitlines()
+    num_of_items = int(data_list[0].strip("*"))  # this begins with an *
+    # * <int> - number of items in array
+    # $ <int> - length of command
+    if DEBUG:
+        print(f"Received data {data}")
+    if (
+        num_of_items == (len(data_list) - 1) / 2
+    ):  # remove number of elements, then for each item, the length is supplied
+        # Advised number of items in array matches how many we parsed
+        cmd = data_list[2].upper()
+        cmd_length = int(data_list[1].strip("$"))
+        if not len(cmd) == cmd_length:
+            # we didn't count right
+            print(
+                f"ERROR: advised cmd length does not match what I calculated for {cmd} != {cmd_length}"
+            )
+            return
+        match cmd:
+            case "COMMAND":
+                resp = "*" + str(len(REDIS_COMMANDS)) + DELIM
+                for cmd in REDIS_COMMANDS:
+                    resp += "+" + cmd + DELIM
+            case "PING":
+                resp = REDIS_PONG
+            case "ECHO":
+                param = data_list[4]
+                param_len = int(data_list[3].strip("$"))
+                if param_len == len(param):
+                    resp = "$" + str(param_len) + DELIM + param + DELIM
+            case _:
+                pass
+    else:
+        print(f"Incorrect number of elements {num_of_items}")
+        resp = f"-ERR number of elements does not match: {num_of_items} <> {len(data_list) - 1}"
+    return resp
+def handle_client(client_socket, addr):
+    print(f"Received new connection {addr}")
+    if DEBUG:
+        print(f"Received new connection {addr}")
+    while client_socket:
+        # print(f"Waiting for data from {addr}")
+        data = client_socket.recv(1024)
+        if len(data) > 0:
+            resp = handle_data(data)
+            resp = handle_command(data)
+        else:
+            # print(f"Closing connection {addr}")
+            return
+        if resp:
+            # print(f"Sending response to {addr}")
+            # print(resp.encode())
+            if DEBUG:
+                print(f"Sending response {resp.encode()} to {addr}")
+            client_socket.sendall(resp.encode())
+            resp = None
 def main():
-    print("Logs from your program will appear here!\n")
-    # server_socket: socket.socket = socket.create_server(
-    #     ("localhost", 6379), reuse_port=True
-    # )
-    # while True:
-    #     try:
-    #         connection: socket.socket
-    #         address: Tuple[str, int]
-    #         connection, address = server_socket.accept()
-    #         # handle_client(connection, address)
-    #         client_thread = threading.Thread(
-    #             target=handle_client, args=[connection, address]
-    #         )
-    #         client_thread.start()
-    #     except Exception as e:
-    #         print(f"Exception: {e}")
-    server_socket = socket.create_server(("localhost", 6379))
+    # You can use print statements as follows for debugging, they'll be visible when running tests.
+    print("Logs from your program will appear here!")
+    server_socket = socket.create_server(("localhost", 6379), reuse_port=True)
+    server_socket.listen()
     while True:
-        client_socket, client_address = server_socket.accept()
-        print(f"Received a connection from {client_address}")
-        threading.Thread(
-            target=handle_connection, args=[client_socket, client_address]
-        ).start()
-        # handle_connection(client_socket, client_address)
-
-
+        conn, addr = server_socket.accept()  # wait for client
+        t = Thread(target=handle_client, args=(conn, addr))
+        t.start()
+    server_socket.close()
 if __name__ == "__main__":
     main()
