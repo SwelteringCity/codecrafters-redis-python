@@ -43,6 +43,7 @@ class Connection(Thread):
     
     def parseCommandAndSendRequest(self, request):
         requestCommand = request[2].lower()
+        
         if "ping" == requestCommand:
             dataToSend = "+PONG\r\n"
         elif "echo" == requestCommand:
@@ -50,12 +51,14 @@ class Connection(Thread):
         elif "set" == requestCommand:
             key, value = request[4], request[6]
             self.database.add(key, value)
+
             if len(request) > 8 and request[8].upper() == "PX":
                 self.database.updateExpiryTime(
                     key, time.time() + float(request[10]) / 1000
                 )
             else:
                 self.database.deleteDataExpiry(key)
+            dataToSend = "+OK\r\n"
         elif "get" == requestCommand:
             key = request[4]
             dataExpiryTime = self.database.getDataExpiry(key)
@@ -66,6 +69,7 @@ class Connection(Thread):
                 dataToSend = f"+{value}\r\n"
         else:
             return
+        
         self.socket.send(dataToSend.encode())
 
 def main():
